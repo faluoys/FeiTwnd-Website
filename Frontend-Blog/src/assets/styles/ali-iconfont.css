@@ -15,6 +15,10 @@
   line-height: 1;
 }
 
+.icon-robot:before {
+  content: "\e82e";
+}
+
 .icon-talk_emjio:before {
   content: "\e6b3";
 }

@@ -359,7 +359,13 @@ onMounted(() => {
             <!-- 文章概要 -->
             <div v-if="article.summary" class="article-summary-block">
               <i class="iconfont icon-guidang" />
-              <p>{{ article.summary }}</p>
+              <div class="summary-main">
+                <p>{{ article.summary }}</p>
+                <div class="summary-ai-tip">
+                  <i class="iconfont icon-robot" />
+                  <span>该文章摘要由AI生成</span>
+                </div>
+              </div>
             </div>
 
             <!-- 正文 -->
@@ -836,6 +842,21 @@ onMounted(() => {
 }
 .article-summary-block p {
   margin: 0;
+}
+.summary-main {
+  flex: 1;
+  min-width: 0;
+}
+.summary-ai-tip {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--blog-text3, #909399);
+}
+.summary-ai-tip .iconfont {
+  font-size: 13px;
 }
 
 .article-content {
