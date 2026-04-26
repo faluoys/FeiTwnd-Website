@@ -120,7 +120,7 @@ router.beforeEach((to) => {
 
   // 未登录 → 跳登录页（已在登录页则放行）
   if (!isLoggedIn && to.path !== '/login') {
-    return { path: '/login', replace: true }
+    return { path: '/login', query: { redirect: to.fullPath }, replace: true }
   }
 
   // 已登录 → 禁止再访问登录页，直接进首页

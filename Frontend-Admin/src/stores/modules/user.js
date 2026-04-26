@@ -37,7 +37,8 @@ export const useUserStore = defineStore(
       } catch {
         // 个人信息获取失败不影响登录跳转
       }
-      router.push('/dashboard')
+      const redirect = router.currentRoute.value?.query?.redirect
+      router.push(typeof redirect === 'string' && redirect ? redirect : '/dashboard')
     }
 
     /** 拉取当前管理员信息 */

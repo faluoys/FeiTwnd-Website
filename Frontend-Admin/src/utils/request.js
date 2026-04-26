@@ -48,7 +48,9 @@ http.interceptors.response.use(
         http._isRedirecting401 = true
         ElMessage.warning('登录状态失效，请重新登录')
         localStorage.removeItem('admin_token')
-        router.push('/login')
+        const currentPath = router.currentRoute.value?.fullPath || '/dashboard'
+        const redirect = currentPath === '/login' ? '/dashboard' : currentPath
+        router.push({ path: '/login', query: { redirect } })
         setTimeout(() => {
           http._isRedirecting401 = false
         }, 2000)

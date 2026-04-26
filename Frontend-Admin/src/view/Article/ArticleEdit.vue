@@ -34,6 +34,102 @@ const onHtmlChanged = (html) => {
 const saving = ref(false)
 const uploadingCover = ref(false)
 const editorPanelRef = ref(null)
+let autoDraftTimer = null
+
+const draftStorageKey = computed(() => {
+  const id = route.params.id
+  return id ? `admin_article_draft_${id}` : 'admin_article_draft_new'
+})
+
+const getDraftPayload = () => ({
+  id: form.value.id,
+  title: form.value.title,
+  slug: form.value.slug,
+  summary: form.value.summary,
+  coverImage: form.value.coverImage,
+  categoryId: form.value.categoryId,
+  tagIds: form.value.tagIds,
+  contentMarkdown: form.value.contentMarkdown,
+  contentHtml: form.value.contentHtml,
+  isPublished: form.value.isPublished,
+  updatedAt: Date.now()
+})
+
+const hasAnyDraftContent = () => {
+  return !!(
+    form.value.title?.trim() ||
+    form.value.slug?.trim() ||
+    form.value.summary?.trim() ||
+    form.value.coverImage?.trim() ||
+    form.value.contentMarkdown?.trim() ||
+    (form.value.tagIds && form.value.tagIds.length)
+  )
+}
+
+const saveLocalDraft = ({ silent = true } = {}) => {
+  if (!hasAnyDraftContent()) return
+  try {
+    localStorage.setItem(
+      draftStorageKey.value,
+      JSON.stringify(getDraftPayload())
+    )
+    if (!silent) ElMessage.success('已保存到本地草稿')
+  } catch {
+    if (!silent) ElMessage.warning('本地草稿保存失败，请及时手动保存')
+  }
+}
+
+const clearLocalDraft = () => {
+  localStorage.removeItem(draftStorageKey.value)
+}
+
+const restoreLocalDraftIfNeeded = async () => {
+  const raw = localStorage.getItem(draftStorageKey.value)
+  if (!raw) return
+
+  try {
+    const draft = JSON.parse(raw)
+    const current = JSON.stringify(getDraftPayload())
+    const local = JSON.stringify({
+      ...draft,
+      updatedAt: undefined
+    })
+    const now = JSON.stringify({
+      ...JSON.parse(current),
+      updatedAt: undefined
+    })
+    if (local === now) return
+
+    await ElMessageBox.confirm('检测到本地未保存草稿，是否恢复？', '恢复草稿', {
+      confirmButtonText: '恢复',
+      cancelButtonText: '忽略',
+      distinguishCancelAndClose: true,
+      type: 'warning'
+    })
+
+    Object.assign(form.value, {
+      id: draft.id ?? form.value.id,
+      title: draft.title ?? '',
+      slug: draft.slug ?? '',
+      summary: draft.summary ?? '',
+      coverImage: draft.coverImage ?? '',
+      categoryId: draft.categoryId ?? null,
+      tagIds: draft.tagIds ?? [],
+      contentMarkdown: draft.contentMarkdown ?? '',
+      contentHtml: draft.contentHtml ?? '',
+      isPublished: draft.isPublished ?? 0
+    })
+    takeSnapshot()
+    ElMessage.success('已恢复本地草稿')
+  } catch (e) {
+    if (e === 'cancel') {
+      clearLocalDraft()
+      return
+    }
+    // 数据损坏或弹窗关闭时，删除坏数据避免重复打扰
+    clearLocalDraft()
+  }
+}
 
 /* ---- 图片上传（md-editor-v3 回调格式） ---- */
 const onUploadImg = async (files, callback) => {
@@ -121,10 +217,20 @@ const handleSave = async (
     await articleStore.saveArticle({ ...form.value })
     isSaved.value = isPublished === 1 && redirectAfterSave
     takeSnapshot()
+    clearLocalDraft()
     ElMessage.success(isPublished ? '发布成功' : '保存草稿成功')
     if (redirectAfterSave) {
       router.push('/article/list')
     }
+  } catch (error) {
+    // 方案3：保存失败先落本地草稿，401时再跳登录
+    saveLocalDraft()
+    if (error?.response?.status === 401) {
+      ElMessage.warning('登录已过期，内容已保存到本地草稿，请重新登录')
+      const redirect = route.fullPath || '/article/edit'
+      router.push({ path: '/login', query: { redirect } })
+    }
+    throw error
   } finally {
     saving.value = false
   }
@@ -190,6 +296,12 @@ onBeforeRouteLeave(async () => {
 
 onMounted(async () => {
   window.addEventListener('keydown', onKeydownSave)
+  window.addEventListener('beforeunload', saveLocalDraft)
+
+  autoDraftTimer = window.setInterval(() => {
+    if (hasUnsavedChanges()) saveLocalDraft()
+  }, 5000)
+
   await Promise.all([articleStore.fetchCategories(), articleStore.fetchTags()])
   if (isEdit.value) {
     const res = await articleStore.fetchDetail(route.params.id)
@@ -207,10 +319,17 @@ onMounted(async () => {
       })
     }
   }
+  await restoreLocalDraftIfNeeded()
   takeSnapshot()
 })
 
 onBeforeUnmount(() => {
+  saveLocalDraft()
+  if (autoDraftTimer) {
+    clearInterval(autoDraftTimer)
+    autoDraftTimer = null
+  }
+  window.removeEventListener('beforeunload', saveLocalDraft)
   window.removeEventListener('keydown', onKeydownSave)
 })
 </script>
