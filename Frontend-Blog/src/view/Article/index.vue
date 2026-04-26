@@ -362,7 +362,7 @@ onMounted(() => {
               <div class="summary-main">
                 <p>{{ article.summary }}</p>
                 <div class="summary-ai-tip">
-                  <i class="iconfont icon-robot" />
+                  <i class="iconfont icon-zhinengyouhua" />
                   <span>该文章摘要由AI生成</span>
                 </div>
               </div>
@@ -844,19 +844,29 @@ onMounted(() => {
   margin: 0;
 }
 .summary-main {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
 }
+.summary-main p {
+  margin: 0;
+}
 .summary-ai-tip {
-  margin-top: 8px;
   display: inline-flex;
   align-items: center;
+  align-self: flex-end;
   gap: 4px;
+  margin-top: 4px;
   font-size: 12px;
+  line-height: 1;
   color: var(--blog-text3, #909399);
+  white-space: nowrap;
 }
 .summary-ai-tip .iconfont {
-  font-size: 13px;
+  font-size: 15px;
+  margin-top: 0;
+  line-height: 1;
 }
 
 .article-content {
