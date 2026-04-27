@@ -87,9 +87,6 @@ public class SaveLogAsyncServiceImpl implements SaveLogAsyncService {
             // 记录操作数据
             if (operationLog.saveData()) {
                 String operateData = buildOperateData(joinPoint);
-                if (operateData != null && operateData.length() > 5000) {
-                    operateData = operateData.substring(0, 5000) + "...";
-                }
                 operationLogs.setOperateData(operateData);
             }
 
@@ -213,7 +210,16 @@ public class SaveLogAsyncServiceImpl implements SaveLogAsyncService {
             }
 
             // 转换为JSON（过滤敏感字段）
-            return JSON.toJSONString(params);
+            String json = JSON.toJSONString(params);
+            if (json != null && json.length() > 5000) {
+                // operate_data 字段是 JSON 类型，不能直接截断字符串，否则会变成非法 JSON
+                Map<String, Object> compact = new HashMap<>();
+                compact.put("truncated", true);
+                compact.put("originalLength", json.length());
+                compact.put("preview", json.substring(0, 3000));
+                return JSON.toJSONString(compact);
+            }
+            return json;
 
         } catch (Exception e) {
             log.warn("构建操作数据失败", e);

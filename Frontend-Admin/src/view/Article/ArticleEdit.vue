@@ -34,6 +34,7 @@ const onHtmlChanged = (html) => {
 const saving = ref(false)
 const uploadingCover = ref(false)
 const editorPanelRef = ref(null)
+const serverUpdatedAt = ref(0)
 let autoDraftTimer = null
 
 const draftStorageKey = computed(() => {
@@ -89,6 +90,14 @@ const restoreLocalDraftIfNeeded = async () => {
 
   try {
     const draft = JSON.parse(raw)
+    const localUpdatedAt = Number(draft.updatedAt || 0)
+
+    // 编辑已有文章时，仅当本地草稿比服务器版本更新才允许恢复
+    if (isEdit.value && localUpdatedAt <= serverUpdatedAt.value) {
+      clearLocalDraft()
+      return
+    }
+
     const current = JSON.stringify(getDraftPayload())
     const local = JSON.stringify({
       ...draft,
@@ -306,6 +315,9 @@ onMounted(async () => {
   if (isEdit.value) {
     const res = await articleStore.fetchDetail(route.params.id)
     if (res) {
+      serverUpdatedAt.value = res.updateTime
+        ? new Date(res.updateTime.replace(' ', 'T')).getTime()
+        : 0
       Object.assign(form.value, {
         id: res.id,
         title: res.title ?? '',
@@ -318,6 +330,8 @@ onMounted(async () => {
         isPublished: res.isPublished ?? 0
       })
     }
+  } else {
+    serverUpdatedAt.value = 0
   }
   await restoreLocalDraftIfNeeded()
   takeSnapshot()

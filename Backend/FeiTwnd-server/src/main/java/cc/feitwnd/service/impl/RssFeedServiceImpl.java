@@ -5,6 +5,7 @@ import cc.feitwnd.result.PageResult;
 import cc.feitwnd.service.ArticleService;
 import cc.feitwnd.service.PersonalInfoService;
 import cc.feitwnd.service.RssFeedService;
+import cc.feitwnd.vo.BlogArticleDetailVO;
 import cc.feitwnd.vo.BlogArticleVO;
 import cc.feitwnd.vo.PersonalInfoVO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,7 +48,7 @@ public class RssFeedServiceImpl implements RssFeedService {
 
         StringBuilder xml = new StringBuilder();
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        xml.append("<rss version=\"2.0\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n");
+        xml.append("<rss version=\"2.0\" xmlns:atom=\"http://www.w3.org/2005/Atom\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\">\n");
         xml.append("  <channel>\n");
         xml.append("    <title>").append(escapeXml(siteName)).append("</title>\n");
         xml.append("    <link>").append(BLOG_BASE_URL).append("</link>\n");
@@ -65,6 +66,19 @@ public class RssFeedServiceImpl implements RssFeedService {
                 if (article.getSummary() != null) {
                     xml.append("      <description>").append(escapeXml(article.getSummary())).append("</description>\n");
                 }
+
+                BlogArticleDetailVO detail = articleService.getBySlug(article.getSlug());
+                String fullContent = detail != null
+                        ? (detail.getContentHtml() != null && !detail.getContentHtml().isBlank()
+                        ? detail.getContentHtml()
+                        : detail.getContentMarkdown())
+                        : null;
+                if (fullContent != null && !fullContent.isBlank()) {
+                    xml.append("      <content:encoded><![CDATA[")
+                            .append(wrapCData(fullContent))
+                            .append("]]></content:encoded>\n");
+                }
+
                 if (article.getCategoryName() != null) {
                     xml.append("      <category>").append(escapeXml(article.getCategoryName())).append("</category>\n");
                 }
@@ -90,5 +104,10 @@ public class RssFeedServiceImpl implements RssFeedService {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&apos;");
+    }
+
+    private String wrapCData(String text) {
+        if (text == null) return "";
+        return text.replace("]]>", "]]]]><![CDATA[>");
     }
 }
