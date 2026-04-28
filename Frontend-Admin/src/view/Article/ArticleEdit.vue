@@ -307,9 +307,8 @@ onMounted(async () => {
   window.addEventListener('keydown', onKeydownSave)
   window.addEventListener('beforeunload', saveLocalDraft)
 
-  autoDraftTimer = window.setInterval(() => {
-    if (hasUnsavedChanges()) saveLocalDraft()
-  }, 5000)
+  // 先拍一次快照，避免 initialSnapshot 为空导致首次离开被误判为有未保存内容
+  takeSnapshot()
 
   await Promise.all([articleStore.fetchCategories(), articleStore.fetchTags()])
   if (isEdit.value) {
@@ -334,7 +333,12 @@ onMounted(async () => {
     serverUpdatedAt.value = 0
   }
   await restoreLocalDraftIfNeeded()
+  // 恢复完成后更新快照，再启动自动保存定时器
   takeSnapshot()
+
+  autoDraftTimer = window.setInterval(() => {
+    if (hasUnsavedChanges()) saveLocalDraft()
+  }, 5000)
 })
 
 onBeforeUnmount(() => {
