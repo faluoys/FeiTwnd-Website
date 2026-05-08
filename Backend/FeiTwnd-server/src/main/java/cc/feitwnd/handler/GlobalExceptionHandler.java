@@ -7,6 +7,7 @@ import cc.feitwnd.exception.GuestReadOnlyException;
 import cc.feitwnd.exception.TokenException;
 import cc.feitwnd.result.Result;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -96,16 +97,22 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result exceptionHandler(SQLIntegrityConstraintViolationException ex){
-        String message = ex.getMessage();
-        if(message.contains("Duplicate entry")){
-            String [] split = message.split(" ");
-            String username = split[2];
-            String msg = username + MessageConstant.ALREADY_EXIST;
-            return Result.error(msg);
-        }else{
-            return Result.error(MessageConstant.UNKNOWN_ERROR);
-        }
+        return Result.error(resolveDuplicateKeyMessage(ex.getMessage()));
+    }
+
+    /**
+     * 数据库唯一约束/外键约束异常
+     */
+    @ExceptionHandler
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result exceptionHandler(DataIntegrityViolationException ex){
+        String message = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        log.warn("数据库约束异常：{}", message);
+        return Result.error(resolveDuplicateKeyMessage(message));
     }
 
     /**
@@ -145,7 +152,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result exceptionHandler(MaxUploadSizeExceededException ex){
         log.warn("文件上传大小超限：{}", ex.getMessage());
-        return Result.error("上传文件大小超过限制");
+        return Result.error("上传文件大小超过限制（30MB）");
     }
 
     /**
@@ -156,6 +163,64 @@ public class GlobalExceptionHandler {
     public Result exceptionHandler(Exception ex){
         log.error("未知异常：", ex);
         return Result.error(MessageConstant.UNKNOWN_ERROR);
+    }
+
+    private String resolveDuplicateKeyMessage(String message) {
+        if (message == null) {
+            return MessageConstant.UNKNOWN_ERROR;
+        }
+        if (message.contains("Duplicate entry")) {
+            String friendly = mapDuplicateKeyToMessage(message);
+            if (friendly != null) {
+                return friendly;
+            }
+            String[] split = message.split(" ");
+            String value = split.length > 2 ? split[2] : "";
+            return value + MessageConstant.ALREADY_EXIST;
+        }
+        return MessageConstant.UNKNOWN_ERROR;
+    }
+
+    private String mapDuplicateKeyToMessage(String message) {
+        String key = extractDuplicateKey(message);
+        if (key == null) {
+            return null;
+        }
+        if (key.contains("article.slug") || key.contains("slug")) {
+            return "Slug 已存在";
+        }
+        if (key.contains("system_config.config_key") || key.contains("config_key")) {
+            return "配置键已存在";
+        }
+        if (key.contains("uk_tag_name")) {
+            return "标签名称已存在";
+        }
+        if (key.contains("uk_tag_slug")) {
+            return "标签 Slug 已存在";
+        }
+        if (key.contains("uk_article_tag")) {
+            return "文章标签已存在";
+        }
+        if (key.contains("uk_article_visitor")) {
+            return "已点赞";
+        }
+        if (key.contains("uk_visitor_fingerprint")) {
+            return "访客已存在";
+        }
+        return null;
+    }
+
+    private String extractDuplicateKey(String message) {
+        int keyIndex = message.indexOf("for key '");
+        if (keyIndex < 0) {
+            return null;
+        }
+        int start = keyIndex + "for key '".length();
+        int end = message.indexOf("'", start);
+        if (end <= start) {
+            return null;
+        }
+        return message.substring(start, end);
     }
 
 }

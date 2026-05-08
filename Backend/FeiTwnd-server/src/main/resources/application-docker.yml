@@ -16,7 +16,7 @@ spring:
     allow-circular-references: true
   servlet:
     multipart:
-      max-file-size: 15MB
+      max-file-size: 30MB
       max-request-size: 50MB
   #数据库连接信息
   datasource:
