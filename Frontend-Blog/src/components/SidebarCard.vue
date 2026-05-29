@@ -84,13 +84,25 @@ const handleRssUnsubscribe = async () => {
 /* WebSocket 在线访客 */
 const onlineCount = ref(0)
 let ws = null
+let reconnectTimer = null
+let heartbeatTimer = null
+let unmounted = false
 
 const connectWs = () => {
+  if (unmounted) return
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
   const host = location.host
   const wsPath = '/api/ws/online'
   try {
     ws = new WebSocket(`${protocol}://${host}${wsPath}`)
+    ws.onopen = () => {
+      // 每 30 秒发送心跳，保持连接活跃
+      heartbeatTimer = setInterval(() => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send('ping')
+        }
+      }, 30000)
+    }
     ws.onmessage = (e) => {
       const msg = e.data
       if (msg === 'pong') return
@@ -98,7 +110,13 @@ const connectWs = () => {
       if (!isNaN(count)) onlineCount.value = count
     }
     ws.onclose = () => {
-      setTimeout(connectWs, 5000)
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer)
+        heartbeatTimer = null
+      }
+      if (!unmounted) {
+        reconnectTimer = setTimeout(connectWs, 5000)
+      }
     }
     ws.onerror = () => {
       ws?.close()
@@ -113,6 +131,15 @@ onMounted(() => {
   checkRssStatus()
 })
 onUnmounted(() => {
+  unmounted = true
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer)
+    heartbeatTimer = null
+  }
   ws?.close()
   ws = null
 })
